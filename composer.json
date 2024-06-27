@@ -1,6 +1,6 @@
 {
-    "name": "kreait/firebase-php",
-    "description": "Firebase Admin SDK",
+    "name": "kkk/firebase-php",
+    "description": "My custom version of kreait/firebase-php",
     "keywords": ["firebase", "google", "sdk", "api", "database"],
     "homepage": "https://github.com/kreait/firebase-php",
     "license": "MIT",

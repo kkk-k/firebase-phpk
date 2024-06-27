@@ -189,4 +189,45 @@ final class MulticastSendReport implements Countable
     {
         return \count($this->items);
     }
+    
+    public static function fromSendAllResponse($results): self
+    {
+        $reports = [];
+        foreach ($results as $index => $result) {
+            $target_type  = $result['value']['target_type'];
+            $target_value = $result['value']['target_value'];
+            $message      = $result['value']['message'];
+            $response     = $result['value']['response'] ?? null;
+            $reason       = $result['value']['reason'] ?? null;
+
+            switch ($target_type) {
+                case 'token':
+                    $target = MessageTarget::with(MessageTarget::TOKEN, (string)$target_value);
+                    break;
+                case 'topic':
+                    $target = MessageTarget::with(MessageTarget::TOPIC, (string)$target_value);
+                    break;
+
+                case 'condition':
+                    $target = MessageTarget::with(MessageTarget::CONDITION, (string)$target_value);
+                    break;
+                default:
+                    $target = MessageTarget::with(MessageTarget::UNKNOWN, 'unknown');
+            }
+
+            if ($result['state'] === 'fulfilled' && $response && $response->getStatusCode() < 400) {
+                try {
+                    $responseData = JSON::decode((string)$response->getBody(), true);
+                } catch (InvalidArgumentException $e) {
+                    $responseData = [];
+                }
+                $reports[] = SendReport::success($target, $responseData, $message);
+            } else {
+                $exception = new \Exception(json_encode($reason->errors(), JSON_UNESCAPED_UNICODE), 0);
+                $reports[] = SendReport::failure($target, $exception, $message);
+            }
+        }
+
+        return self::withItems($reports);
+    }
 }

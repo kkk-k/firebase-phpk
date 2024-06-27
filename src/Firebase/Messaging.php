@@ -81,17 +81,28 @@ class Messaging implements Contract\Messaging
 
     public function sendAll($messages, bool $validateOnly = false): MulticastSendReport
     {
-        $ensuredMessages = [];
-
+       $ensuredMessages = [];
         foreach ($messages as $message) {
             $ensuredMessages[] = $this->makeMessage($message);
         }
 
-        $request = new SendMessages($this->projectId, new Messages(...$ensuredMessages), $validateOnly);
-        /** @var ResponseWithSubResponses $response */
-        $response = $this->messagingApi->send($request);
+        $promises = [];
 
-        return MulticastSendReport::fromRequestsAndResponses($request->subRequests(), $response->subResponses());
+        foreach ($ensuredMessages as $message) {
+            $request      = new SendMessage($this->projectId, $message, $validateOnly);
+            $target_value = $message->getTargetValue();
+            $target_type  = $message->getTargetType();
+
+            $promises[] = $this->messagingApi->sendAsync($request)->then(function ($response) use ($target_value, $message, $target_type) {
+                return ['target_value' => $target_value, 'target_type' => $target_type, 'response' => $response, 'message' => $message];
+            }, function ($reason) use ($target_value, $message, $target_type) {
+                return ['target_value' => $target_value, 'target_type' => $target_type, 'reason' => $reason, 'message' => $message];
+            });
+        }
+
+        $responses = Utils::settle($promises)->wait();
+
+        return MulticastSendReport::fromSendAllResponse($responses);
     }
 
     public function validate($message): array
